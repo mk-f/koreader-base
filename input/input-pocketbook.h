@@ -106,19 +106,24 @@ static inline void debug_mtinfo(iv_mtinfo *mti) {
  */
 
 /* 
- * define a fake-event which can be send via SendEventTo into 
+ * define fake-events which can be send via SendEventTo into 
  * pb_event_handle()
  */
 #define PB_SPECIAL_SUSPEND 333
 
+/* set timer, signal that timer is up, poweroff */
+#define PB_SPECIAL_TIMER_POWEROFF 334
+#define PB_SPECIAL_SIGNAL_POWEROFF 335
+#define PB_SPECIAL_POWEROFF 335
+
 /* callback to disable suspension */
 void disable_suspend(void) {
-	iv_sleepmode(0);
+    iv_sleepmode(0);
 }
 
 /* callback to enable suspension */
 void enable_suspend(void) {
-	iv_sleepmode(1);
+    iv_sleepmode(1);
 }
 
 static int external_suspend_control = 0;
@@ -141,10 +146,25 @@ static int setSuspendState(lua_State *L) {
 			);
 }
 
+static int setAutoPoweroff(lua_State *L) {
+	send_to_event_handler(
+			PB_SPECIAL_TIMER_POWEROFF,
+			luaL_checkint(L,1),
+			0
+			);
+}
+
+/* poweroff callback */
+void signal_poweroff(void) {
+    iv_sleepmode(0);
+    send_to_event_handler(PB_SPECIAL_SIGNAL_POWEROFF, 0, 0);
+    /* TODO fallback? */
+}
+
 int touch_pointers = 0;
 static int pb_event_handler(int type, int par1, int par2) {
-    // printf("ev:%d %d %d\n", type, par1, par2);
-    // fflush(stdout);
+    printf("ev:%d %d %d\n", type, par1, par2);
+    fflush(stdout);
     int i;
     iv_mtinfo *mti;
 
@@ -161,6 +181,9 @@ static int pb_event_handler(int type, int par1, int par2) {
 	 * power
 	 */
 	SetHardTimer("fallback_enable_suspend", fallback_enable_suspend, 1000 * 60);
+
+        /* Disable PB's own AutoPoweroff feature */
+        SetAutoPowerOff(0);
     }
 
     if (type == EVT_POINTERDOWN) {
